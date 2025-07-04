@@ -101,6 +101,8 @@ class SVM:
         self.X_train = None
         self.y_train = None
         self.lambdas = None
+        self.Q = None
+        self.initial_dual_obj = None
         self.b = 0.0
         self.last_num_iter = None
         self.last_cpu_time = None
@@ -115,8 +117,8 @@ class SVM:
         """
         self.X_train = X
         self.y_train = y
-        Q = self._compute_Q(X, y)
-        self.lambdas = self._solve_dual(Q, y)
+        self.Q = self._compute_Q(X, y)
+        self.lambdas = self._solve_dual(self.Q, y)
         self.b = self._compute_b()
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -172,6 +174,8 @@ class SVM:
         from time import perf_counter
 
         n = y.size
+        self.initial_dual_obj = self.initial_dual_objective(n)
+
         P = matrix(Q, tc='d')
         q = matrix(-np.ones(n), tc='d')
         G = matrix(np.vstack([-np.eye(n), np.eye(n)]), tc='d')
@@ -211,6 +215,10 @@ class SVM:
         b_values = y_sv - decision_part
         return np.mean(b_values)
 
+    def initial_dual_objective(self, n: int) -> float:
+        init_lambdas = np.zeros(n)
+        return -np.sum(init_lambdas) + 0.5 * init_lambdas.T @ self.Q @ init_lambdas
+
     def dual_objective(self) -> float:
         """
         Compute the value of the dual objective function.
@@ -218,8 +226,7 @@ class SVM:
         Returns:
             Dual objective value.
         """
-        Q = self._compute_Q(self.X_train, self.y_train)
-        return -np.sum(self.lambdas) + 0.5 * self.lambdas.T @ Q @ self.lambdas
+        return -np.sum(self.lambdas) + 0.5 * self.lambdas.T @ self.Q @ self.lambdas
 
 # ===========================================
 #         CROSS-VALIDATION ROUTINE
