@@ -38,19 +38,29 @@ Each dataset includes "feat i" columns for features and a "gt" column for the gr
 ### Repository Contents
 The repository is organized to clearly separate implementations for each part of the project.
 ```
-├── part1/
-│   ├── Functions\_\[11]Avino\_Lombardi.py       # Core Python functions for the MLP (forward, backward, loss, activations, etc.)
-│   └── run\[11]Avino\_Lombardi.ipynb            # Notebook for training the MLP, hyperparameter tuning (k-fold), and metrics
+├── Question 1/
+│   ├── Functions_11_Avino_Lombardi.py       # Core Python functions for the MLP (forward, backward, loss, activations, etc.)
+│   └── run_11_Avino_Lombardi.ipynb          # Notebook for training the MLP, hyperparameter tuning (k-fold), and metrics
 
-├── part2/
-│   ├── Functions\[2]Avino\_Lombardi.py          # Core SVM functions (dual solver, kernel functions, MVP decomposition, etc.)
-│   └── run\[2]\_Avino\_Lombardi.ipynb           # Notebook(s) for SVM training, validation, confusion matrix, etc.
+├── Question 2/
+│   ├── Functions_22_Avino_Lombardi.py        # Core SVM functions (dual solver, kernel functions, MVP decomposition, etc.)
+│   └── run_22_Avino_Lombardi.ipynb           # Notebook(s) for SVM training, validation, confusion matrix, etc.
+
+├── Question 3/
+│   ├── Functions_23_Avino_Lombardi.py        # Core SVM functions (dual solver, kernel functions, MVP decomposition, etc.)
+│   └── run_23_Avino_Lombardi.ipynb           # Notebook for most violating pair (MVP) decomposition method implementation
+
+├── Question 4/
+│   ├── Functions_24_Avino_Lombardi.py        # Core SVM functions (dual solver, kernel functions, MVP decomposition, etc.)
+│   └── run_24_Avino_Lombardi.ipynb           # Notebook(s) for SVM multiclass classification
+
+
 
 ├── data/
-│   ├── AGE\_REGRESSION.csv
-│   ├── GENDER\_CLASSIFICATION.csv
-│   └── ETHNICITY\_CLASSIFICATION.csv
+│   ├── AGE_REGRESSION.csv
+│   ├── GENDER_CLASSIFICATION.csv
+│   └── ETHNICITY_CLASSIFICATION.csv
 
-├── Avino\_Lombardi.pdf                        # Final project report (max 6 pages excluding figures)
+├── Avino_Lombardi.pdf                        # Final project report 
 └── README.md                                 # This README file
 ```
