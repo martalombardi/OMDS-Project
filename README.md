@@ -2,9 +2,9 @@ This repository contains the final project for the "Optimization Methods for Dat
 
 ## Authors
 
-[Valeria Avino] ([https://github.com/vaal4ds])
+[Valeria Avino]([https://github.com/vaal4ds])
 
-[Marta Lombardi] ([Your GitHub Handle 2, if applicable])
+[Marta Lombardi]([https://github.com/martalombardi])
 
 ## Project Overview
 This project addresses two core machine learning tasks: **age regression** using a **Multi-Layer Perceptron (MLP)** and **gender/ethnicity classification** using **Support Vector Machines (SVMs)**.
