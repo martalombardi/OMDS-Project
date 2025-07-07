@@ -1,3 +1,4 @@
+# OMDS 24-25 PROJECT
 This repository contains the final project for the "Optimization Methods for Data Science" course (2024-2025), focusing on the implementation of machine learning models from scratch using optimization routines without automatic differentiation tools.
 
 ## Authors
