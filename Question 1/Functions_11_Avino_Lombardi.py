@@ -1,8 +1,9 @@
 from typing import Callable, Tuple, List, Dict, Any
 import numpy as np
-import time
 from sklearn.model_selection import KFold
 from scipy.optimize import minimize
+from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.exceptions import NotFittedError
 
 def unroll_params(W_list: List[np.ndarray], b_list: List[np.ndarray], v: np.ndarray) -> np.ndarray:
     """
@@ -149,6 +150,7 @@ def backward(X: np.ndarray,
         gradients_b: List of gradients for b vectors (for hidden layers).
         gradient_v: Gradient for v (output layer weights).
     """
+
     gradients_W = [np.zeros_like(W) for W in W_list]
     gradients_b = [np.zeros_like(b) for b in b_list]
 
@@ -171,6 +173,7 @@ def backward(X: np.ndarray,
     for l_idx in reversed(range(L - 1)): 
         # dE/dW_l = delta_l @ (a_{l-1}).T
         # a_{l-1} (post-activation of previous layer) is z_list[l_idx]
+        
         gradients_W[l_idx] = delta @ z_list[l_idx].T
         gradients_b[l_idx] = np.sum(delta, axis=1, keepdims=True)
 
@@ -182,6 +185,13 @@ def backward(X: np.ndarray,
 
     return gradients_W, gradients_b, gradient_v
 
+def xavier_normal_init(in_dim: int, out_dim: int) -> np.ndarray:
+    """
+    This function implements the Xavier normal initialization for the weights.
+    It samples from a normal distribution with mean 0 and std dev sqrt(2 / (fan_in + fan_out)).
+    """
+    sigma = np.sqrt(2.0 / (in_dim + out_dim))
+    return np.random.randn(in_dim, out_dim) * sigma
 
 def initialize_parameters(input_dim: int, hidden_neurons: List[int], output_dim: int, regularization_factor: float) -> Tuple[List[np.ndarray], List[np.ndarray], np.ndarray]:
     """
@@ -192,7 +202,7 @@ def initialize_parameters(input_dim: int, hidden_neurons: List[int], output_dim:
 
     # Input layer to first hidden layer (hidden_neurons[0])
     # W1 connects input_dim to hidden_neurons[0]
-    W1 = np.random.randn(hidden_neurons[0], input_dim) * np.sqrt(1. / input_dim)
+    W1 = xavier_normal_init(input_dim, hidden_neurons[0]).T # <-- Use xavier_normal_init. Transpose if your W is (neurons, input_dim)
     b1 = np.zeros((hidden_neurons[0], 1))
     W_list.append(W1)
     b_list.append(b1)
@@ -200,14 +210,16 @@ def initialize_parameters(input_dim: int, hidden_neurons: List[int], output_dim:
     # Subsequent hidden layers (if any)
     # Loop for connections between hidden_neurons[i] and hidden_neurons[i+1]
     for i in range(len(hidden_neurons) - 1): # Loop from 0 to num_hidden_layers - 2
-        W_next = np.random.randn(hidden_neurons[i+1], hidden_neurons[i]) * np.sqrt(1. / hidden_neurons[i])
+        # W_next connects hidden_neurons[i] to hidden_neurons[i+1]
+        # fan_in = hidden_neurons[i], fan_out = hidden_neurons[i+1]
+        W_next = xavier_normal_init(hidden_neurons[i], hidden_neurons[i+1]).T
         b_next = np.zeros((hidden_neurons[i+1], 1))
         W_list.append(W_next)
         b_list.append(b_next)
 
     # Output layer weights (v)
     # v connects hidden_neurons[-1] (last hidden layer) to output_dim
-    v = np.random.randn(hidden_neurons[-1], output_dim) * np.sqrt(1. / hidden_neurons[-1])
+    v = xavier_normal_init(hidden_neurons[-1], output_dim) 
 
     return W_list, b_list, v
 
@@ -222,7 +234,7 @@ def check_gradients_with_central_differences(
     activation_prime_for_check: Callable[[np.ndarray], np.ndarray],
     regularization_factor_for_check: float,
     num_layers_for_check: int,
-    objective_function_ref: Callable # Pass the objective_function itself as an argument
+    objective_function_ref: Callable 
 ):
     """
     Performs a gradient check using central differences.
@@ -315,7 +327,7 @@ def objective_function(flat_params: np.ndarray,
     # Compute MSE loss
     loss = mse_loss(target_data, y_pred)
 
-    # Backward pass (using y_pred instead of target_data)
+    # Backward pass 
     grad_W_list, grad_b_list, grad_v = backward(
         X=input_data,
         y_true=target_data,
@@ -346,7 +358,140 @@ def objective_function(flat_params: np.ndarray,
     return loss, flattened_gradients
 
 
-# --- Custom K-Fold Cross-Validation Function ---
+class myMLPRegressor(BaseEstimator, RegressorMixin):
+    ''' custom MLP Regressor Class '''
+    # default values
+    def __init__(self, D_input: int, y_output_dim: int, num_layers: int = 3, # 2 hidden
+                 num_neurons: List[int] = [8, 4],
+                 activation_func_name: str = 'g1',
+                 regularization_factor: float = 0.001,
+                 max_iter: int = 5000, print_callback_loss: bool = True, random_state: int = None):
+
+        # Hyperparameters for gridsearch
+        self.num_layers = num_layers
+        self.num_neurons = num_neurons
+        self.activation_func_name = activation_func_name
+        self.regularization_factor = regularization_factor
+        self.max_iter = max_iter
+        self.print_callback_loss = print_callback_loss
+
+        # Fixed parameters from dataset
+        self.D_input = D_input
+        self.y_output_dim = y_output_dim
+
+        # Attributes that will be set after fitting (by the fit method)
+        self.W_list_ = None
+        self.b_list_ = None
+        self.v_ = None
+        self.W_shapes_ = None
+        self.b_shapes_ = None
+        self.v_shape_ = None
+        self.activation_func_ = None 
+        self.activation_prime_ = None
+        self.n_iterations_ = None
+        self.optimization_message_ = None
+        self.final_objective_value_ = None
+        self._is_invalid_combo = False # Flag to mark invalid hyperparameter combinations
+        self.random_state = random_state # For reproducibility
+
+    def _get_activation_functions(self):
+        """Maps activation function name (string) to callable functions."""
+        if self.activation_func_name == 'g1':
+            return g1, dg1_dx
+        elif self.activation_func_name == 'g2':
+            return g2, dg2_dx
+        else:
+            raise ValueError(f"Unknown activation function name: {self.activation_func_name}")
+
+    def fit(self, X: np.ndarray, y: np.ndarray):
+        
+        X_transposed = X.T # (D, N_samples) 
+        y_transposed = y.T # (1, N_samples)
+
+        # Architectural Validation
+        expected_hidden_layers = self.num_layers - 1 # L total layers, L-1 hidden layers
+        if len(self.num_neurons) != expected_hidden_layers:
+            self._is_invalid_combo = True
+            return self
+
+        self._is_invalid_combo = False # Reset flag for valid combinations
+
+        # Get activation functions
+        self.activation_func_, self.activation_prime_ = self._get_activation_functions()
+
+        if self.random_state is not None:
+            np.random.seed(self.random_state)
+
+        # Initialize parameters
+        W_init, b_init, v_init = initialize_parameters(
+            self.D_input, self.num_neurons, self.y_output_dim, self.regularization_factor
+        )
+        initial_flat_params = unroll_params(W_init, b_init, v_init)
+
+        # Store shapes of parameters for rolling/unrolling inside objective_function
+        self.W_shapes_ = [W.shape for W in W_init]
+        self.b_shapes_ = [b.shape for b in b_init]
+        self.v_shape_ = v_init.shape
+
+        # Callback function to print mse loss in training
+        iteration_count = 0 
+
+        def callback_function(current_flat_params):
+            nonlocal iteration_count 
+            iteration_count += 1
+
+            if iteration_count % 10 == 0:
+                W_list_cb, b_list_cb, v_cb = roll_params(
+                    current_flat_params, self.W_shapes_, self.b_shapes_, self.v_shape_
+                )
+                # Perform forward pass to get y_pred
+                y_pred_cb, _, _ = forward(
+                    X_transposed, W_list_cb, b_list_cb, v_cb, self.activation_func_, self.num_layers
+                )
+                # Calculate non-regularized MSE loss
+                non_reg_loss = mse_loss(y_transposed, y_pred_cb)
+                print(f"  Iteration {iteration_count}: Non-regularized MSE Loss = {non_reg_loss:.6f}")
+
+        callback_arg = callback_function if self.print_callback_loss else None
+
+        result = minimize(
+            fun=objective_function,
+            x0=initial_flat_params,
+            args=(X_transposed, y_transposed, self.W_shapes_, self.b_shapes_, self.v_shape_,
+                  self.activation_func_, self.activation_prime_, self.regularization_factor, self.num_layers),
+            method='L-BFGS-B',
+            jac=True,
+            options={'disp': False, 'maxiter': self.max_iter, 'ftol': 1e-5},
+            callback=callback_arg # Pass the callback here
+        )
+
+        # Store the optimized parameters and optimization details
+        self.W_list_, self.b_list_, self.v_ = roll_params(
+            result.x, self.W_shapes_, self.b_shapes_, self.v_shape_
+        )
+        self.n_iterations_ = result.nit
+        self.optimization_message_ = result.message
+        self.final_objective_value_ = result.fun # final (regularized) loss after optimization
+
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        # If combination flagged invalid during fit, raise an error
+        if self._is_invalid_combo:
+            raise NotFittedError("This estimator was skipped due to an invalid hyperparameter combination during fit.")
+        # Check if the model has actually been trained
+        if self.W_list_ is None:
+            raise NotFittedError("Model has not been trained yet. Call .fit() first.")
+
+        # Transpose X for forward function
+        X_transposed = X.T
+        # Perform forward pass with the TRAINED parameters to get predictions
+        y_pred, _, _ = forward(X_transposed, self.W_list_, self.b_list_, self.v_, self.activation_func_, self.num_layers)
+        # Transpose prediction back to (N_samples,1) for sklearn compatibility
+        return y_pred.T.flatten() 
+
+'''
+# OLD MANNUAL CV WITHOUT CLASS USAGE
 def my_k_fold_CV(
     X_train_norm: np.ndarray, 
     y_train_data: np.ndarray,
@@ -467,6 +612,7 @@ def my_k_fold_CV(
 
     print("\nHyperparameter Tuning Complete.")
     return best_mape, best_hyperparameters, best_training_results
+'''
 
 def final_report_metrics(
     final_L, final_neurons_config, final_activation_name, final_reg_factor, final_train_max_iter,
@@ -483,7 +629,7 @@ def final_report_metrics(
 
     print("\n--- Comprehensive Performance Metrics for Final Report ---")
 
-    # --- 1. Optimal Configuration (for Figure 2 & Point 1) ---
+    # --- 1. Optimal Configuration ---
     print("\n1. Optimal Model Configuration:")
     print(f"  Non-linearity (Activation Function): {final_activation_name}")
     print(f"  Total Number of Layers (L): {final_L}")
@@ -501,7 +647,7 @@ def final_report_metrics(
     print(f"  Final Value of Objective Function: {final_train_objective_value:.4e}")
 
 
-    # --- 3. Training Set Performance (Initial & Final)) ---
+    # --- 3. Training Set Performance (Initial & Final) ---
     print("\n3. Training Set Performance:")
     print(f"  Initial Training Error (MAPE): {initial_train_mape_final_model:.4f}%")
     print(f"  Initial Training Error (MSE, regularized): {initial_train_mse_reg_final_model:.4f}")
@@ -520,8 +666,6 @@ def final_report_metrics(
     print(f"  Final Test Error (MSE, regularized): {test_error_mse_reg:.4f}")
     print(f"  Final Test Error (MSE, **non-regularized**): {test_error_mse_no_reg:.4f}")
 
-
-    # --- Plotting the Results---
     # Data for plots
     metrics_for_plot = {
         "Training (Final)": {
@@ -538,7 +682,6 @@ def final_report_metrics(
             "MAPE": best_overall_mape_score,
         },
     }
-
 
     # --- Performance Metrics Summary Table ---
     print("\nPerformance Metrics Summary Table for Report (Figure 1 Data):")
