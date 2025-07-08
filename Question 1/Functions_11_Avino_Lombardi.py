@@ -685,7 +685,7 @@ def final_report_metrics(
 
     # --- Performance Metrics Summary Table ---
     print("\nPerformance Metrics Summary Table for Report (Figure 1 Data):")
-    print(f"{'Metric':<25} {'Training (Final)':<20} {'Validation (Avg)':<20} {'Test (Final)':<20}")
+    print(f"{'Metric':<25} {'Training (Final)':<20} {'Test (Final)':<20} {'Validation (Avg)':<20}")
     print("-" * 85)
 
     # MAPE
