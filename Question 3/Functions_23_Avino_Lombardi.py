@@ -17,7 +17,6 @@ class MVP:
     using m and M values.
     """
 
-    # Fix: Changed _init_ to __init__
     def __init__(self, C: float, kernel_func: Callable, kernel_params: Dict, tol: float = 1e-3, max_iter: int = 1000):
         self.C = C
         self.kernel_func = kernel_func
@@ -27,11 +26,6 @@ class MVP:
 
         self.alpha: np.ndarray | None = None # Alpha multipliers
         self.b: float = 0.0 # Bias term
-        # self.gradient: Stores y_k * E_k where E_k = f(x_k) - y_k
-        # This is G in the svm_train_mvp code, which is y_k * (sum_l(alpha_l * y_l * K_kl) + b - y_k)
-        # If f(x_k) does not include b, then G_k = y_k * sum_l(alpha_l * y_l * K_kl) - 1.
-        # The update rule `G += delta_alpha_i * Q[:, i] + delta_alpha_j * Q[:, j]`
-        # implies G is directly related to Q @ alpha - 1 or similar gradient forms.
         self.gradient: np.ndarray | None = None
 
         self.K: np.ndarray | None = None # Kernel matrix (K(x_i, x_j))
@@ -64,9 +58,6 @@ class MVP:
         self.Q = (y[:, None] * y[None, :]) * self.K
 
         # Initialize gradient 
-        # G_k = y_k * f(x_k) - 1.
-        # Initially, f(x_k) = b = 0 (before any alpha updates).
-        # So, y_k * (0) - 1 = -1.
         self.gradient = -np.ones(n_samples)
 
         self.initial_dual_obj = self.dual_objective()
@@ -137,17 +128,6 @@ class MVP:
         decision = (self.sv_lam * self.sv_y) @ K_test.T + self.b # (n_test_samples,)
 
         return np.sign(decision)
-
-    # _error method is not directly used, but can be kept as a utility.
-    def _error(self, k: int) -> float:
-        """
-        Compute the prediction error for the k-th training point.
-        f(x_k) = sum_l (alpha_l * y_l * K(x_l, x_k)) + b
-        E_k = f(x_k) - y_k
-        """
-        f_xk = np.dot(self.alpha * self.y_train, self.K[:, k]) + self.b
-        return f_xk - self.y_train[k]
-
 
     def _select_mvp_pair(self, final_check=False) -> Tuple[Union[int, None], Union[int, None], Union[float, None], Union[float, None]]:
         """
@@ -247,7 +227,7 @@ class MVP:
         """
         Perform the SMO optimization step for a selected pair (i, j) and update the gradient.
         """
-        if i == j: # Should not happen if _select_mvp_pair is working correctly
+        if i == j:
             return False
 
         alpha_i_old = self.alpha[i]
@@ -294,15 +274,12 @@ class MVP:
         self.alpha[j] = alpha_j_new
 
         # Update the gradient incrementally
-        # G_new = G_old + (alpha_i_new - alpha_i_old) * Q[:, i] + (alpha_j_new - alpha_j_old) * Q[:, j]
-        # Q[:, i] is the i-th column of the Q matrix (y_k y_i K_ki for k=0..N-1)
         delta_alpha_i = alpha_i_new - alpha_i_old
         delta_alpha_j = alpha_j_new - alpha_j_old
 
         self.gradient += delta_alpha_i * self.Q[:, i] + delta_alpha_j * self.Q[:, j]
 
         # Update bias (self.b) incrementally based on new alphas and gradient (errors)
-        # These are derived from the KKT condition y*f(x) - 1 = 0 for free SVs
         b1 = self.b - E_i - y_i * delta_alpha_i * K_ii - y_j * delta_alpha_j * K_ij
         b2 = self.b - E_j - y_i * delta_alpha_i * K_ij - y_j * delta_alpha_j * K_jj
 
@@ -333,9 +310,7 @@ class MVP:
             all_sv_indices = np.where(self.alpha > self.tol)[0]
 
             if len(all_sv_indices) > 0:
-                # Vectorized computation of f_xk for all support vectors
-                # K[:, all_sv_indices] selects only the columns corresponding to support vectors
-                # The dot product (matrix multiplication) computes f_xk for all of them at once
+               
                 f_xk_values = np.dot(alpha_y_product, self.K[:, all_sv_indices])
                 
                 # Compute b_values = y_k - f(x_k) for these selected support vectors
@@ -343,12 +318,10 @@ class MVP:
                 
                 return np.mean(b_values) # Calculate the mean of these b values
             else:
-                return 0.0 # Fallback if no support vectors at all
+                return 0.0
         else:
-            # Vectorized computation of f_xk for free support vectors
             f_xk_values = np.dot(alpha_y_product, self.K[:, support_indices])
             
-            # Compute b_values = y_k - f(x_k) for these free support vectors
             b_values = self.y_train[support_indices] - f_xk_values
             
             return np.mean(b_values) # Calculate the mean of these b values
@@ -363,6 +336,6 @@ class MVP:
         Keeping that convention for consistency with previous user code.
         """
         if self.alpha is None or self.Q is None:
-            return 0.0 # Or raise an error if called before fit
+            return 0.0 
 
         return -np.sum(self.alpha) + 0.5 * self.alpha @ self.Q @ self.alpha

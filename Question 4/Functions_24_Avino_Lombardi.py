@@ -28,7 +28,6 @@ def _get_mvp_decision_function_scores(mvp_model: Any, X_new: np.ndarray) -> np.n
     Returns:
         np.ndarray: Raw decision scores for each sample in X_new, shape (n_samples,).
     """
-    # Ensure the MVP model is trained and has support vectors
     if mvp_model.sv_x is None or len(mvp_model.sv_x) == 0:
         # If no support vectors are found (e.g., all alpha=0),
         # the decision function is effectively just the bias.
@@ -72,8 +71,8 @@ class MulticlassSVM:
         # Stores newly trained MVP models for the current dataset.
         # For OvR: {class_label: MVP_model_for_that_class}
         # For OvO: {(class1_label, class2_label): MVP_model_for_pair}
-        self.models: Dict[Any, Any] = {} # Type hint for MVP model instances
-        self.classes_: np.ndarray | None = None # Unique classes in the dataset
+        self.models: Dict[Any, Any] = {} 
+        self.classes_: np.ndarray | None = None 
 
     def fit(self, X: np.ndarray, y: np.ndarray):
         """
@@ -96,7 +95,6 @@ class MulticlassSVM:
                 # Create binary labels: +1 for current class, -1 for all others
                 y_binary = np.where(y == c, 1, -1)
 
-                # Instantiate and train a NEW MVP model for this binary problem
                 model = MVP(C=self.C, kernel_func=self.kernel_func,
                             kernel_params=self.kernel_params, tol=self.tol,
                             max_iter=self.max_iter)
@@ -139,18 +137,13 @@ class MulticlassSVM:
             raise RuntimeError("Classes not set. Call fit() first.")
 
         n_samples = X.shape[0]
-        # Initialize predictions array with a default type that can hold class labels
-        # No need to pre-allocate predictions for OvO as it will be derived from vote_matrix
-        # predictions = np.zeros(n_samples, dtype=self.classes_.dtype) # Not needed here
 
         if self.strategy == 'ovr':
             # For OvR, we use the decision_function scores
             scores = np.zeros((n_samples, len(self.classes_)))
-            # Create a mapping from class label to its index in the scores array
             class_to_idx = {cls: i for i, cls in enumerate(self.classes_)}
 
             for c, model in self.models.items():
-                # Use the helper function to get raw scores from the trained MVP model
                 scores[:, class_to_idx[c]] = _get_mvp_decision_function_scores(model, X)
 
             # The predicted class is the one with the highest decision score
