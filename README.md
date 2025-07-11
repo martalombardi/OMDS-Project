@@ -48,12 +48,12 @@ The repository is organized to clearly separate implementations for each part of
 │   └── run_22_Avino_Lombardi.ipynb           # Notebook(s) for SVM training, validation, confusion matrix, etc.
 
 ├── Question 3/
-│   ├── Functions_23_Avino_Lombardi.py        # Core SVM functions (dual solver, kernel functions, MVP decomposition, etc.)
+│   ├── Functions_23_Avino_Lombardi.py        # MVP class definition with fixed hyperparameters from Q2
 │   └── run_23_Avino_Lombardi.ipynb           # Notebook for most violating pair (MVP) decomposition method implementation
 
 ├── Question 4/
-│   ├── Functions_24_Avino_Lombardi.py        # Core SVM functions (dual solver, kernel functions, MVP decomposition, etc.)
-│   └── run_24_Avino_Lombardi.ipynb           # Notebook(s) for SVM multiclass classification
+│   ├── Functions_24_Avino_Lombardi.py        # Multiclass SVM class definition applying MVP decomposition method 
+│   └── run_24_Avino_Lombardi.ipynb           # Notebook(s) for 3-class ethnicity classification
 
 
 
