@@ -77,7 +77,7 @@ class MVP:
                 print(f"[Converged via KKT gap] Iteration {it}, m-M = {m_val - M_val:.6f} < tol = {self.tol}")
                 self.final_M_minus_m = m_val - M_val
                 break
-
+            
             # If no valid pair was found by _select_mvp_pair (e.g., R or S empty, or numerical issues)
             if i is None or j is None:
                 print(f"[Early Stopping] Iteration {it}, no violating pair found that allows progress.")
@@ -85,11 +85,12 @@ class MVP:
                 _, _, final_m_val, final_M_val = self._select_mvp_pair(final_check=True)
                 self.final_M_minus_m = final_m_val - final_M_val
                 break
-
+            
             success = self._optimize_pair(i, j)
 
             if not success:
                 continue
+
 
         end = time.time()
         self.n_iter_ = it
