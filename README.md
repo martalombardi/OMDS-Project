@@ -36,6 +36,10 @@ The project utilizes the UTKFace dataset, which provides over 20,000 labeled ima
 
 Each dataset includes "feat i" columns for features and a "gt" column for the ground truth.
 
+### Running the Notebooks on Google Colab
+To run each notebook on **Google Colab**, simply open the desired notebook and click on the **"Open in Colab"** badge located just below its title.  
+Once on Colab, execute all the cells in order. The code will automatically **clone the full repository** and set the working directory to match the folder corresponding to the current notebook, so everything will be ready to run.
+
 ### Repository Contents
 The repository is organized to clearly separate implementations for each part of the project.
 ```
