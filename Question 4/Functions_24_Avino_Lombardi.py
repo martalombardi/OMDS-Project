@@ -74,6 +74,13 @@ class MulticlassSVM:
         self.models: Dict[Any, Any] = {} 
         self.classes_: np.ndarray | None = None 
 
+        # Attributes to store aggregated metrics from binary models
+        self.total_cpu_time = 0.0
+        self.total_iterations = 0
+        self.avg_final_M_minus_m = 0.0
+        self.avg_final_dual_obj = 0.0
+        self.num_binary_models = 0 # Counter for models trained
+
     def fit(self, X: np.ndarray, y: np.ndarray):
         """
         Fits the multiclass SVM model to the training data.
@@ -88,6 +95,17 @@ class MulticlassSVM:
         print(f"Starting Multiclass SVM training with {self.strategy.upper()} strategy...")
         start_time = time.time()
 
+        # Reset aggregated metrics before training
+        self.total_cpu_time = 0.0
+        self.total_iterations = 0
+        self.avg_final_M_minus_m = 0.0
+        self.avg_final_dual_obj = 0.0
+        self.num_binary_models = 0
+        
+        # Temporary lists to collect metrics for averaging
+        temp_m_minus_m_values = []
+        temp_dual_obj_values = []
+
         if self.strategy == 'ovr':
             print(f"Training {n_classes} One-vs-Rest (OvR) binary SVMs.")
             for i, c in enumerate(self.classes_):
@@ -100,6 +118,15 @@ class MulticlassSVM:
                             max_iter=self.max_iter)
                 model.fit(X, y_binary)
                 self.models[c] = model # Store the newly trained model associated with this class
+                
+                # Aggregate metrics
+                self.num_binary_models += 1
+                self.total_cpu_time += model.last_cpu_time if model.last_cpu_time is not None else 0
+                self.total_iterations += model.n_iter_
+                if model.final_M_minus_m is not None:
+                    temp_m_minus_m_values.append(model.final_M_minus_m)
+                temp_dual_obj_values.append(model.dual_objective())
+
             print("OvR training complete.")
 
         elif self.strategy == 'ovo':
@@ -121,10 +148,28 @@ class MulticlassSVM:
                             max_iter=self.max_iter)
                 model.fit(X_filtered, y_binary)
                 self.models[(c1, c2)] = model # Store the newly trained model associated with this pair
+                
+                # Aggregate metrics
+                self.num_binary_models += 1
+                self.total_cpu_time += model.last_cpu_time if model.last_cpu_time is not None else 0
+                self.total_iterations += model.n_iter_
+                if model.final_M_minus_m is not None:
+                    temp_m_minus_m_values.append(model.final_M_minus_m)
+                temp_dual_obj_values.append(model.dual_objective())
+
             print("OvO training complete.")
 
         end_time = time.time()
-        print(f"Total multiclass training time: {end_time - start_time:.4f} seconds.")
+        # The total_cpu_time is the sum of individual model training times.
+        # The overall wall-clock time for MulticlassSVM.fit is end_time - start_time.
+        # We'll report total_cpu_time as the sum of internal MVP model times.
+
+        if self.num_binary_models > 0:
+            self.avg_final_M_minus_m = np.mean(temp_m_minus_m_values) if temp_m_minus_m_values else 0.0
+            self.avg_final_dual_obj = np.mean(temp_dual_obj_values) if temp_dual_obj_values else 0.0
+        else:
+            self.avg_final_M_minus_m = 0.0
+            self.avg_final_dual_obj = 0.0
 
 
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -169,9 +214,8 @@ class MulticlassSVM:
                 vote_matrix[decision_vals_all_samples < 0, idx_c2] += 1
 
             # For each sample, the predicted class is the one with the most votes
-            # np.argmax will give the index of the class with max votes
-            # Then map back to the actual class label
+            # mapped back to the actual class label
             predictions = self.classes_[np.argmax(vote_matrix, axis=1)]
 
-        # Return predictions as a 1D array. Let the calling code reshape if needed.
+        # Return predictions
         return predictions
